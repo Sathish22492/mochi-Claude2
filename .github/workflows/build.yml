@@ -1,0 +1,29 @@
+name: Build Mochi firmware
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install platformio esptool==4.7.0
+      - name: Compile
+        working-directory: firmware
+        run: pio run
+      - name: Merge into one flashable image (flash at 0x0)
+        working-directory: firmware
+        run: |
+          B=.pio/build/xh-s3e-ai
+          BOOTAPP=$(find ~/.platformio/packages -name boot_app0.bin | head -1)
+          esptool.py --chip esp32s3 merge_bin -o mochi-claude-factory.bin \
+            --flash_mode dio --flash_freq 80m --flash_size 16MB \
+            0x0 $B/bootloader.bin 0x8000 $B/partitions.bin 0xe000 "$BOOTAPP" 0x10000 $B/firmware.bin
+          ls -l mochi-claude-factory.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mochi-claude-factory
+          path: firmware/mochi-claude-factory.bin
